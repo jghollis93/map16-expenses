@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>map16 Expenses</title>
+  <style>
+    :root { --brand:#1e6f5c; --brand2:#2e9e85; --bg:#f4f6f8; --card:#fff; --ink:#1b2733; --muted:#6b7a8d; }
+    * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+    body { background:var(--bg); color:var(--ink); }
+    .hidden { display:none !important; }
+    header { background:linear-gradient(135deg,var(--brand),var(--brand2)); color:#fff; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; }
+    header h1 { font-size:20px; letter-spacing:.5px; }
+    header .who { font-size:13px; opacity:.9; }
+    .wrap { max-width:780px; margin:0 auto; padding:20px; }
+    .card { background:var(--card); border-radius:14px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.06); margin-bottom:16px; }
+    label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+    input,textarea,select { width:100%; padding:12px; border:1px solid #d8e0e8; border-radius:10px; font-size:15px; }
+    button { background:var(--brand); color:#fff; border:none; padding:12px 18px; border-radius:10px; font-size:15px; cursor:pointer; font-weight:600; }
+    button:hover { background:var(--brand2); }
+    button.ghost { background:#eef2f5; color:var(--ink); }
+    .login-box { max-width:420px; margin:60px auto; }
+    .login-box h2 { margin-bottom:6px; }
+    .login-box p { color:var(--muted); margin-bottom:18px; font-size:14px; }
+    .folder { display:flex; justify-content:space-between; align-items:center; padding:14px; border:1px solid #e4ebf1; border-radius:10px; margin-bottom:10px; cursor:pointer; }
+    .folder:hover { border-color:var(--brand2); }
+    .folder .meta { font-size:12px; color:var(--muted); }
+    .row { display:flex; gap:10px; }
+    .row > * { flex:1; }
+    .exp { border:1px solid #e4ebf1; border-radius:10px; padding:12px; margin-bottom:10px; }
+    .tag { display:inline-block; background:#e3f3ee; color:var(--brand); padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+    .exp .top { display:flex; justify-content:space-between; align-items:center; }
+    .exp .cost { font-weight:700; font-size:17px; }
+    .small { font-size:13px; color:var(--muted); }
+    .preview { max-width:100%; border-radius:10px; margin-top:10px; }
+    .mt { margin-top:14px; }
+    .spin { color:var(--muted); font-size:14px; }
+    .note { font-size:12px; color:var(--muted); margin-top:6px; }
+    .back { cursor:pointer; color:var(--brand); font-size:14px; margin-bottom:12px; display:inline-block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>map16 Expenses</h1>
+    <span class="who" id="who"></span>
+  </header>
+
+  <!-- LOGIN -->
+  <div id="loginView" class="wrap">
+    <div class="card login-box">
+      <h2>Sign in</h2>
+      <p>Enter your email address to access your expenses.</p>
+      <label>Email address</label>
+      <input id="loginEmail" type="email" placeholder="you@example.com" />
+      <button class="mt" style="width:100%" onclick="login()">Continue</button>
+      <div id="loginErr" class="note" style="color:#c0392b"></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashView" class="wrap hidden">
+    <div class="card">
+      <div class="row">
+        <input id="newFolder" placeholder="New folder name (e.g. March Trip)" />
+        <button style="flex:0 0 auto" onclick="createFolder()">+ Folder</button>
+      </div>
+    </div>
+    <h3 style="margin:6px 4px 12px">Your expense folders</h3>
+    <div id="folderList"></div>
+    <p id="noFolders" class="small">No folders yet. Create one above to get started.</p>
+  </div>
+
+  <!-- FOLDER DETAIL -->
+  <div id="folderView" class="wrap hidden">
+    <span class="back" onclick="showDash()">&larr; Back to dashboard</span>
+    <div class="card">
+      <h3 id="folderTitle"></h3>
+      <div class="mt">
+        <label>Capture a receipt (photo or video)</label>
+        <input id="receiptFile" type="file" accept="image/*,video/*" capture="environment" onchange="onReceipt(event)" />
+        <div id="analyzeStatus" class="spin mt"></div>
+        <img id="receiptPreview" class="preview hidden" />
+      </div>
+      <div class="mt">
+        <label>Date</label>
+        <input id="expDate" type="date" />
+      </div>
+      <div class="row mt">
+        <div><label>Cost (£)</label><input id="expCost" type="number" step="0.01" placeholder="0.00" /></div>
+        <div><label>Tag</label><input id="expTag" placeholder="e.g. dinner" /></div>
+      </div>
+      <div class="mt">
+        <label>Overview</label>
+        <textarea id="expOverview" rows="2" placeholder="Rough overview of the expense"></textarea>
+      </div>
+      <div class="card mt" style="background:#f7faf9; box-shadow:none; border:1px dashed #cfe0da">
+        <label>Fuel mileage (charged at 45p / mile)</label>
+        <div class="row">
+          <input id="miles" type="number" step="0.1" placeholder="Miles driven" oninput="calcMileage()" />
+          <input id="mileageCost" readonly placeholder="£0.00" />
+        </div>
+        <div class="note">Mileage cost = miles × £0.45</div>
+      </div>
+      <button class="mt" style="width:100%" onclick="saveExpense()">Save expense</button>
+    </div>
+
+    <h3 style="margin:6px 4px 12px">Expenses in this folder</h3>
+    <div id="expenseList"></div>
+
+    <div class="card">
+      <label>Share these expenses with a colleague (by email)</label>
+      <div class="row">
+        <input id="shareEmail" type="email" placeholder="colleague@example.com" />
+        <button style="flex:0 0 auto" onclick="shareFolder()">Send</button>
+      </div>
+      <div id="shareStatus" class="note"></div>
+    </div>
+  </div>
+
+  <script>
+    let EMAIL = localStorage.getItem('map16_email') || '';
+    let FOLDERS = [];
+    let CURRENT = null;
+    let pendingReceiptUrl = '';
+
+    function api(url, opts){ return fetch(url, opts).then(r => r.json()); }
+
+    function login(){
+      const email = document.getElementById('loginEmail').value.trim();
+      api('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) })
+        .then(res => {
+          if(res.error){ document.getElementById('loginErr').textContent = res.error; return; }
+          EMAIL = res.email; localStorage.setItem('map16_email', EMAIL);
+          boot();
+        });
+    }
+
+    function boot(){
+      document.getElementById('who').textContent = EMAIL;
+      document.getElementById('loginView').classList.add('hidden');
+      loadFolders();
+      showDash();
+    }
+
+    function loadFolders(){
+      api('/api/folders?email=' + encodeURIComponent(EMAIL)).then(f => { FOLDERS = f || []; renderFolders(); });
+    }
+
+    function renderFolders(){
+      const list = document.getElementById('folderList'); list.innerHTML = '';
+      document.getElementById('noFolders').style.display = FOLDERS.length ? 'none' : 'block';
+      FOLDERS.forEach(f => {
+        const d = document.createElement('div'); d.className = 'folder';
+        const total = (f.expenses||[]).reduce((s,e)=> s + Number(e.cost||0) + Number(e.mileageCost||0), 0);
+        d.innerHTML = '<div><strong>'+f.name+'</strong><div class="meta">'+(f.expenses||[]).length+' expenses</div></div><div class="cost">£'+total.toFixed(2)+'</div>';
+        d.onclick = () => openFolder(f.id);
+        list.appendChild(d);
+      });
+    }
+
+    function createFolder(){
+      const name = document.getElementById('newFolder').value.trim();
+      if(!name) return;
+      api('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email:EMAIL, name }) })
+        .then(() => { document.getElementById('newFolder').value=''; loadFolders(); });
+    }
+
+    function showDash(){
+      CURRENT = null;
+      document.getElementById('folderView').classList.add('hidden');
+      document.getElementById('dashView').classList.remove('hidden');
+      loadFolders();
+    }
+
+    function openFolder(id){
+      CURRENT = FOLDERS.find(f => f.id === id);
+      document.getElementById('dashView').classList.add('hidden');
+      document.getElementById('folderView').classList.remove('hidden');
+      document.getElementById('folderTitle').textContent = CURRENT.name;
+      document.getElementById('expDate').value = new Date().toISOString().slice(0,10);
+      resetForm();
+      renderExpenses();
+    }
+
+    function resetForm(){
+      document.getElementById('expCost').value='';
+      document.getElementById('expTag').value='';
+      document.getElementById('expOverview').value='';
+      document.getElementById('miles').value='';
+      document.getElementById('mileageCost').value='';
+      document.getElementById('receiptPreview').classList.add('hidden');
+      document.getElementById('analyzeStatus').textContent='';
+      pendingReceiptUrl='';
+    }
+
+    function renderExpenses(){
+      const list = document.getElementById('expenseList'); list.innerHTML='';
+      (CURRENT.expenses||[]).forEach(e => {
+        const div = document.createElement('div'); div.className='exp';
+        const mileLine = e.miles ? '<div class="small">Mileage: '+e.miles+' mi × £0.45 = £'+Number(e.mileageCost).toFixed(2)+'</div>' : '';
+        div.innerHTML = '<div class="top"><span class="tag">'+(e.tag||'general')+'</span><span class="cost">£'+Number(e.cost||0).toFixed(2)+'</span></div>'+
+          '<div class="small">'+e.date+'</div><div class="mt">'+(e.overview||'')+'</div>'+mileLine+
+          (e.receiptUrl ? '<img class="preview" src="'+e.receiptUrl+'" />' : '');
+        list.appendChild(div);
+      });
+    }
+
+    function calcMileage(){
+      const m = parseFloat(document.getElementById('miles').value) || 0;
+      document.getElementById('mileageCost').value = '£' + (m * 0.45).toFixed(2);
+    }
+
+    function onReceipt(ev){
+      const file = ev.target.files[0]; if(!file) return;
+      const status = document.getElementById('analyzeStatus');
+      const fd = new FormData(); fd.append('file', file);
+      status.textContent = 'Uploading receipt...';
+      fetch('/api/upload', { method:'POST', body: fd }).then(r=>r.json()).then(up => {
+        pendingReceiptUrl = up.url || '';
+        if(file.type.startsWith('image/')){
+          const img = document.getElementById('receiptPreview'); img.src = up.url; img.classList.remove('hidden');
+          const reader = new FileReader();
+          reader.onload = () => analyze(reader.result);
+          reader.readAsDataURL(file);
+        } else {
+          status.textContent = 'Video saved. Please fill in the details below.';
+        }
+      });
+    }
+
+    function analyze(dataUrl){
+      const status = document.getElementById('analyzeStatus');
+      status.textContent = 'Analysing receipt with AI...';
+      api('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ image: dataUrl }) })
+        .then(res => {
+          if(res.error){ status.textContent = res.error; return; }
+          if(res.date) document.getElementById('expDate').value = res.date;
+          if(res.cost) document.getElementById('expCost').value = res.cost;
+          if(res.tag) document.getElementById('expTag').value = res.tag;
+          if(res.overview) document.getElementById('expOverview').value = res.overview;
+          status.textContent = res.aiEnabled ? 'AI read your receipt. Please review the details.' : res.overview;
+        });
+    }
+
+    function saveExpense(){
+      const miles = parseFloat(document.getElementById('miles').value) || 0;
+      const body = {
+        email: EMAIL,
+        date: document.getElementById('expDate').value,
+        cost: parseFloat(document.getElementById('expCost').value) || 0,
+        tag: document.getElementById('expTag').value || 'general',
+        overview: document.getElementById('expOverview').value,
+        receiptUrl: pendingReceiptUrl,
+        miles: miles,
+        mileageCost: +(miles * 0.45).toFixed(2)
+      };
+      api('/api/folders/'+CURRENT.id+'/expenses', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+        .then(exp => { CURRENT.expenses = CURRENT.expenses || []; CURRENT.expenses.push(exp); resetForm(); renderExpenses(); });
+    }
+
+    function shareFolder(){
+      const to = document.getElementById('shareEmail').value.trim();
+      const status = document.getElementById('shareStatus');
+      if(!to){ status.textContent='Enter a colleague email.'; return; }
+      let rows = (CURRENT.expenses||[]).map(e => '<tr><td>'+e.date+'</td><td>'+(e.tag||'')+'</td><td>'+(e.overview||'')+'</td><td>£'+Number(e.cost||0).toFixed(2)+'</td><td>'+(e.miles||0)+' mi</td></tr>').join('');
+      const total = (CURRENT.expenses||[]).reduce((s,e)=> s + Number(e.cost||0) + Number(e.mileageCost||0), 0);
+      const html = '<h2>'+CURRENT.name+'</h2><p>Shared by '+EMAIL+' via map16 Expenses.</p>'+
+        '<table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>Date</th><th>Tag</th><th>Overview</th><th>Cost</th><th>Mileage</th></tr>'+rows+'</table>'+
+        '<h3>Total: £'+total.toFixed(2)+'</h3>';
+      status.textContent = 'Sending...';
+      api('/api/share', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to, subject:'Expenses: '+CURRENT.name, html }) })
+        .then(res => {
+          if(res.error){ status.textContent = res.error; }
+          else if(res.configured === false){ status.textContent = res.message; }
+          else { status.textContent = 'Sent to ' + to + ' ✓'; }
+        });
+    }
+
+    if(EMAIL){ boot(); }
+  </script>
+</body>
+</html>
