@@ -90,6 +90,23 @@ app.post('/api/folders/:folderId/expenses', (req, res) => {
   res.json(exp);
 });
 
+// ---- Update an expense (e.g. add the cost later) ----
+app.patch('/api/folders/:folderId/expenses/:expenseId', (req, res) => {
+  const email = (req.body.email || '').toLowerCase();
+  const db = loadDB();
+  const user = getUser(db, email);
+  const folder = user.folders.find(f => f.id === req.params.folderId);
+  if (!folder) return res.status(404).json({ error: 'Folder not found.' });
+  const exp = (folder.expenses || []).find(e => e.id === req.params.expenseId);
+  if (!exp) return res.status(404).json({ error: 'Expense not found.' });
+  if (req.body.cost !== undefined) exp.cost = Number(req.body.cost) || 0;
+  if (req.body.date !== undefined) exp.date = req.body.date;
+  if (req.body.tag !== undefined) exp.tag = req.body.tag;
+  if (req.body.overview !== undefined) exp.overview = req.body.overview;
+  saveDB(db);
+  res.json(exp);
+});
+
 // ---- Receipt upload ----
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
