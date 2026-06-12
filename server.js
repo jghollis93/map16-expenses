@@ -17,13 +17,14 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 // Only these email addresses may sign in. Override via ALLOWED_EMAILS env
 // (comma-separated) if you need to change them without editing code.
 const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS ||
-  'jamie.hollis@map16.co.uk,roberto.bello@map16.co.uk')
+  'jamie.hollis@map16.co.uk,roberto.bello@map16.co.uk,josh.harris@map16.co.uk,emma.clark@map16.co.uk,ashley.rymer@map16.co.uk,will.wrist@map16.co.uk,matthew.kelley@map16.co.uk')
   .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-// The manager can export every user's expenses and receipts.
-const MANAGER_EMAIL = (process.env.MANAGER_EMAIL || 'roberto.bello@map16.co.uk').trim().toLowerCase();
+// These managers can browse and export every user's expenses and receipts.
+const MANAGER_EMAILS = (process.env.MANAGER_EMAILS || 'roberto.bello@map16.co.uk,jamie.hollis@map16.co.uk')
+  .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 function isAllowed(email) { return ALLOWED_EMAILS.includes((email || '').trim().toLowerCase()); }
-function isManager(email) { return (email || '').trim().toLowerCase() === MANAGER_EMAIL; }
+function isManager(email) { return MANAGER_EMAILS.includes((email || '').trim().toLowerCase()); }
 
 // Ensure storage directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -69,6 +70,20 @@ const email = (req.query.email || '').toLowerCase();
 if (!isAllowed(email)) return res.status(403).json({ error: 'Not authorised.' });
 const db = loadDB();
 res.json(getUser(db, email).folders);
+});
+
+// Manager-only: every user's folders, each tagged with the uploader email.
+app.get('/api/all-folders', (req, res) => {
+const email = (req.query.email || '').toLowerCase();
+if (!isManager(email)) return res.status(403).json({ error: 'Only managers can view all folders.' });
+const db = loadDB();
+const all = [];
+Object.values(db.users || {}).forEach(u => {
+(u.folders || []).forEach(f => {
+all.push(Object.assign({}, f, { uploader: u.email }));
+});
+});
+res.json(all);
 });
 
 app.post('/api/folders', (req, res) => {
