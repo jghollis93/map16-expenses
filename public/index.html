@@ -49,6 +49,8 @@ button.ghost { background:#eef2f5; color:var(--ink); }
 .lightbox img { max-width:100%; max-height:100%; border-radius:10px; }
 .batch-box { border:1px dashed #cfe0da; background:#f7faf9; border-radius:10px; padding:16px; }
 .progress { font-size:13px; color:var(--brand); margin-top:8px; }
+.manager-card { border:1px solid #cfe0da; background:#f3faf7; }
+.manager-card .row { gap:10px; }
 .overlay { position:fixed; inset:0; background:rgba(27,39,51,.82); display:flex; align-items:center; justify-content:center; z-index:100; backdrop-filter:blur(2px); }
 .overlay .panel { background:#fff; border-radius:16px; padding:30px 34px; text-align:center; max-width:340px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,.3); }
 .overlay .spinner { width:46px; height:46px; margin:0 auto 16px; border:4px solid #e3f3ee; border-top-color:var(--brand); border-radius:50%; animation:spin 0.9s linear infinite; }
@@ -89,6 +91,14 @@ button.ghost { background:#eef2f5; color:var(--ink); }
 
 <!-- DASHBOARD -->
 <div id="dashView" class="wrap hidden">
+<div class="card manager-card hidden" id="managerCard">
+<label>Manager tools &mdash; export everyone's expenses</label>
+<div class="row">
+<button class="ghost" onclick="downloadCsv()">Download CSV</button>
+<button class="ghost" onclick="downloadZip()">Download receipts (ZIP)</button>
+</div>
+<div id="exportStatus" class="note"></div>
+</div>
 <div class="card">
 <div class="row">
 <input id="newFolder" placeholder="New folder name (e.g. March Trip)" />
@@ -165,6 +175,7 @@ button.ghost { background:#eef2f5; color:var(--ink); }
 
 <script>
 let EMAIL = localStorage.getItem('map16_email') || '';
+let IS_MANAGER = localStorage.getItem('map16_manager') === '1';
 let FOLDERS = [];
 let CURRENT = null;
 let pendingReceiptUrl = '';
@@ -196,6 +207,7 @@ api('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, 
 .then(res => {
 if(res.error){ document.getElementById('loginErr').textContent = res.error; return; }
 EMAIL = res.email; localStorage.setItem('map16_email', EMAIL);
+IS_MANAGER = !!res.isManager; localStorage.setItem('map16_manager', IS_MANAGER ? '1' : '0');
 boot();
 });
 }
@@ -208,10 +220,12 @@ showDash();
 }
 
 function loadFolders(){
-return api('/api/folders?email=' + encodeURIComponent(EMAIL)).then(f => { FOLDERS = f || []; renderFolders(); });
+return api('/api/folders?email=' + encodeURIComponent(EMAIL)).then(f => { FOLDERS = Array.isArray(f) ? f : []; renderFolders(); });
 }
 
 function renderFolders(){
+const mc = document.getElementById('managerCard');
+if(mc) mc.classList.toggle('hidden', !IS_MANAGER);
 const list = document.getElementById('folderList'); list.innerHTML = '';
 document.getElementById('noFolders').style.display = FOLDERS.length ? 'none' : 'block';
 FOLDERS.forEach(f => {
@@ -220,6 +234,26 @@ d.innerHTML = '<div><strong>'+f.name+'</strong><div class="meta">'+(f.expenses||
 d.onclick = () => openFolder(f.id);
 list.appendChild(d);
 });
+}
+
+// ---- Manager exports ----
+function downloadCsv(){
+if(!IS_MANAGER) return;
+window.location.href = '/api/export/csv?email=' + encodeURIComponent(EMAIL);
+}
+function downloadZip(){
+if(!IS_MANAGER) return;
+const status = document.getElementById('exportStatus');
+status.textContent = 'Preparing receipts ZIP...';
+fetch('/api/export/zip?email=' + encodeURIComponent(EMAIL)).then(async r => {
+if(!r.ok){ const j = await r.json().catch(()=>({})); status.textContent = j.error || 'No receipts available to download.'; return; }
+const blob = await r.blob();
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'map16-receipts.zip';
+document.body.appendChild(a); a.click(); a.remove();
+status.textContent = 'Download started.';
+}).catch(() => { status.textContent = 'Download failed. Please try again.'; });
 }
 
 function createFolder(){
