@@ -54,6 +54,8 @@ button.ghost { background:#eef2f5; color:var(--ink); }
 .progress { font-size:13px; color:var(--brand); margin-top:8px; }
 .manager-card { border:1px solid #cfe0da; background:#f3faf7; }
 .manager-card .row { gap:10px; }
+.uploader-head { font-size:13px; font-weight:700; color:var(--brand); margin:16px 4px 8px; text-transform:capitalize; }
+.uploader-head:first-of-type { margin-top:6px; }
 .overlay { position:fixed; inset:0; background:rgba(27,39,51,.82); display:flex; align-items:center; justify-content:center; z-index:100; backdrop-filter:blur(2px); }
 .overlay .panel { background:#fff; border-radius:16px; padding:30px 34px; text-align:center; max-width:340px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,.3); }
 .overlay .spinner { width:46px; height:46px; margin:0 auto 16px; border:4px solid #e3f3ee; border-top-color:var(--brand); border-radius:50%; animation:spin 0.9s linear infinite; }
@@ -240,20 +242,40 @@ showDash();
 }
 
 function loadFolders(){
-return api('/api/folders?email=' + encodeURIComponent(EMAIL)).then(f => { FOLDERS = Array.isArray(f) ? f : []; renderFolders(); });
+const url = IS_MANAGER ? ('/api/all-folders?email=' + encodeURIComponent(EMAIL)) : ('/api/folders?email=' + encodeURIComponent(EMAIL));
+return api(url).then(f => { FOLDERS = Array.isArray(f) ? f : []; renderFolders(); });
 }
 
+function uploaderName(email){ return (email||'').split('@')[0] || email || ''; }
 function renderFolders(){
 const mc = document.getElementById('managerCard');
 if(mc) mc.classList.toggle('hidden', !IS_MANAGER);
 const list = document.getElementById('folderList'); list.innerHTML = '';
 document.getElementById('noFolders').style.display = FOLDERS.length ? 'none' : 'block';
+if(IS_MANAGER){
+// Group every user's folders by uploader
+const groups = {};
+FOLDERS.forEach(f => { const key = f.uploader || 'unknown'; (groups[key] = groups[key] || []).push(f); });
+Object.keys(groups).sort().forEach(uploader => {
+const h = document.createElement('div');
+h.className = 'uploader-head';
+h.textContent = uploaderName(uploader) + ' uploads';
+list.appendChild(h);
+groups[uploader].forEach(f => {
+const d = document.createElement('div'); d.className = 'folder';
+d.innerHTML = '<div><strong>'+f.name+'</strong><div class="meta">'+uploaderName(f.uploader)+' · '+(f.expenses||[]).length+' expenses</div></div><div class="cost">£'+folderTotal(f).toFixed(2)+'</div>';
+d.onclick = () => openFolder(f.id);
+list.appendChild(d);
+});
+});
+} else {
 FOLDERS.forEach(f => {
 const d = document.createElement('div'); d.className = 'folder';
 d.innerHTML = '<div><strong>'+f.name+'</strong><div class="meta">'+(f.expenses||[]).length+' expenses</div></div><div class="cost">£'+folderTotal(f).toFixed(2)+'</div>';
 d.onclick = () => openFolder(f.id);
 list.appendChild(d);
 });
+}
 }
 
 // ---- Manager exports ----
